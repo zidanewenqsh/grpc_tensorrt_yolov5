@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package yolov5;
+
+// 定义图像数据结构
+message ImageData {
+  bytes image = 1; // 图像的字节数据
+  int32 width = 2; // 图像宽度
+  int32 height = 3; // 图像高度
+  int32 channels = 4; // 图像通道数
+}
+
+// 定义推理结果数据结构
+message InferenceResult {
+  repeated ObjectDetection detections = 1; // 检测到的对象数组
+}
+
+// 定义单个对象检测结果
+message ObjectDetection {
+  float xmin = 1; // 边界框左上角x坐标
+  float ymin = 2; // 边界框左上角y坐标
+  float xmax = 3; // 边界框右下角x坐标
+  float ymax = 4; // 边界框右下角y坐标
+  int32 label = 5; // 类别
+  float score = 6; // 置信度
+}
+
+// 定义服务
+service YOLOv5Service {
+  rpc Infer (ImageData) returns (InferenceResult) {}
+}
