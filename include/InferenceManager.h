@@ -11,6 +11,8 @@
 #include "Logger.h"
 #include "Yolov5.h"
 #include "YoloFactory.h"
+#include "MySQLConnPool.h"
+
 // #include "Image.h"      // 假设Image的定义在这个文件中
 // #include "Result.h"     // 假设Result的定义在这个文件中
 // #define Result int
@@ -30,6 +32,7 @@ protected:
     MemPoolGpu gpuMemoryPool;
     ThreadPool threadPool;
     YoloPool yoloPool;
+    MySQLConnectionPool dbPool;  // MySQL 连接池
     // std::string modelName;
     // size_t buffersize = 1 << 24;
 public:

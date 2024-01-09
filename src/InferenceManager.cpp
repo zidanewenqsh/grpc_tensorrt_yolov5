@@ -1,9 +1,13 @@
 #include "InferenceManager.h"
-
+#define dbHost "172.16.1.2"
+#define dbUser "ai"
+#define dbPass "12345678"
+#define dbName "MyYoloDB"
 InferenceManager::InferenceManager(size_t pool_size, size_t threads, const std::string& modelname)
     : poolSize(pool_size), cpuMemoryPool(pool_size, threads), 
         gpuMemoryPool(pool_size, threads), 
-        threadPool(threads), yoloPool(modelname, threads) {
+        threadPool(threads), yoloPool(modelname, threads),
+        dbPool(dbHost, dbUser, dbPass, dbName, threads) {
     // YoloFactory::getInstance().setName(modelname);
     
     // 构造函数内容

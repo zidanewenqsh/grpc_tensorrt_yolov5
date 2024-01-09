@@ -12,6 +12,7 @@
 #include "YoloPool.h"   // 假设YoloPool的定义在这个文件中
 #include "MemoryPool.h" // 假设MemoryPool的定义在这个文件中
 #include "MemoryPoolGpu.h" // 假设MemoryPool的定义在这个文件中
+#include "YoloUtils.h"
 using grpc::Server;
 using grpc::ServerBuilder;
 using grpc::ServerContext;
@@ -22,6 +23,7 @@ using yolov5::ObjectDetection;
 using yolov5::YOLOv5Service;
 
 
+
 // 实现gRPC服务
 class YOLOv5ServiceImpl final : public YOLOv5Service::Service, public InferenceManager {
 public:
@@ -30,6 +32,19 @@ public:
 private:
     Status Infer(ServerContext* context, const ImageData* request, InferenceResult* reply) override {
         InferenceResult result;
+
+
+        auto conn = dbPool.getConnection();
+        // if (!conn) {
+        //     // 使用 conn 进行数据库操作
+        //     // ...
+        //     LOG_FATAL("getConnection failed");
+        //     exit(-1);
+        // }
+        // LOG_INFO("getConnection success");
+        
+
+
         // 将ImageData转换为cv::Mat
         cv::Mat image(request->height(), request->width(), CV_8UC3, (void*)request->image().c_str());
         // 执行推理
@@ -63,7 +78,10 @@ private:
             detection->set_ymax(box.y2);
             detection->set_score(box.prob);
             detection->set_label(box.label);
+            // insertDetectionResult(conn, 1, "person", box.prob, box.x1, box.y1, box.x2, box.y2, getCurrentDateTime());
         }
+
+
         *reply = result;
         
         yolov5->reset();
@@ -74,6 +92,7 @@ private:
 
         // 将Yolo实例返回到池中
         yoloPool.release(std::move(yolo));
+        dbPool.releaseConnection(conn);
 
         return Status::OK;
     }

@@ -92,19 +92,21 @@ list(REMOVE_ITEM SOURCE_FILES
 # target_link_libraries(${PROJECT_NAME} ${OpenCV_LIBS} ${CUDA_LIBRARIES} ${TENSORRT_LIBRARY} ${Boost_LIBRARIES})
 
 add_executable(server src/server.cpp ${SOURCE_FILES})
-target_link_libraries(server m nvonnxparser)
+target_link_libraries(server m nvonnxparser mysqlcppconn)
 target_link_libraries(server ${OpenCV_LIBS} ${CUDA_LIBRARIES} ${TENSORRT_LIBRARY} ${Boost_LIBRARIES})
 target_link_libraries(server
     gRPC::grpc++ gRPC::grpc++_reflection
     protobuf pthread dl z)
 
 add_executable(client src/client.cpp ${SOURCE_FILES})
-target_link_libraries(client m nvonnxparser)
+target_link_libraries(client m nvonnxparser mysqlcppconn)
 target_link_libraries(client ${OpenCV_LIBS} ${CUDA_LIBRARIES} ${TENSORRT_LIBRARY} ${Boost_LIBRARIES})
 target_link_libraries(client
     gRPC::grpc++ gRPC::grpc++_reflection
     protobuf pthread dl z)
-    
+
+
+add_executable(time_test test/time_test.cpp)
 # target_link_libraries(${EXE_NAME} opencv_core opencv_imgproc opencv_imgcodecs m nvonnxparser)
 
 # 设置源文件

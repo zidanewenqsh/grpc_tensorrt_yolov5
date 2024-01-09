@@ -39,5 +39,5 @@ std::shared_ptr<IYolo> YoloPool::acquire() {
 void YoloPool::release(std::shared_ptr<IYolo> yolo) {
     std::lock_guard<std::mutex> lock(poolMutex);
     pool.push(yolo);
-    LOG_INFO("yolo pool release");
+    LOG_INFO("yolo pool release\n");
 }

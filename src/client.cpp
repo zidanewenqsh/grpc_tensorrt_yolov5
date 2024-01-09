@@ -4,6 +4,7 @@
 #include "Logger.h"
 #include "YoloUtils.h"
 #include "ClientConfig.h"
+#include "MySQLConnPool.h"
 
 using grpc::Channel;
 using grpc::ClientContext;
@@ -11,7 +12,6 @@ using grpc::Status;
 using yolov5::ImageData;
 using yolov5::InferenceResult;
 using yolov5::YOLOv5Service;
-
 class YOLOv5Client {
 public:
     YOLOv5Client(std::shared_ptr<Channel> channel) : stub_(YOLOv5Service::NewStub(channel)) {}
