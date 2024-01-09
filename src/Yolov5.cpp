@@ -35,6 +35,31 @@ static bool __check_cuda_runtime(cudaError_t code, const char* op, const char* f
 Yolov5::Yolov5(const std::string& name) 
     : TensorRTModel(name){
     LOG_INFO("Yolov5()");
+    runtime = nvinfer1::createInferRuntime(gLogger);
+    // LOG_INFO("createInferRuntime");
+    if (!runtime) {
+        // std::cout << "createInferRuntime failed" << std::endl;
+        LOG_FATAL("createInferRuntime failed");
+        exit(-1);
+    }
+    auto engine_data = loadData(trt_file);
+    engine = runtime->deserializeCudaEngine(engine_data.data(), engine_data.size());
+    if (!engine) {
+        // std::cout << "deserializeCudaEngine failed" << std::endl;
+        LOG_FATAL("deserializeCudaEngine failed");
+        exit(-1);
+    }
+    if (engine->getNbIOTensors() != 2) {
+        // std::cout << "getNbBindings failed" << std::endl;
+        LOG_FATAL("getNbBindings failed");
+        exit(-1);
+    }
+    context = engine->createExecutionContext();
+    if (!context) {
+        // std::cout << "createExecutionContext failed" << std::endl;
+        LOG_FATAL("createExecutionContext failed");
+        exit(-1);
+    }
     // if (init() < 0) {
     //     std::cout << "init failed" << std::endl;
     //     exit(-1);
@@ -49,16 +74,16 @@ Yolov5::Yolov5(const std::string& name)
 
 Yolov5::Yolov5(const std::string& name, int buffer_size) 
     : TensorRTModel(name, buffer_size){
-    if (build() < 0) {
-        LOG_ERROR("build failed");
-        // std::cout << "build failed" << std::endl;
-        exit(-1); 
-    }
-    if (init() < 0) {
-        LOG_ERROR("init failed");
-        // std::cout << "init failed" << std::endl;
-        exit(-1);
-    }
+    // if (build() < 0) {
+    //     LOG_ERROR("build failed");
+    //     // std::cout << "build failed" << std::endl;
+    //     exit(-1); 
+    // }
+    // if (init() < 0) {
+    //     LOG_ERROR("init failed");
+    //     // std::cout << "init failed" << std::endl;
+    //     exit(-1);
+    // }
     // std::cout << "Yolov5()" << std::endl;
 }
 
@@ -66,6 +91,14 @@ Yolov5::~Yolov5() {
     std::cout << "~Yolov5())" << std::endl;
 }
 int Yolov5::init() {
+    if (!build_finished && !exists(trt_file)) {
+        // std::cout << "trt_file exists" << std::endl;
+        LOG_FATAL("trt file not exists: %s", trt_file.c_str());
+        return -1;
+    }
+    
+    checkRuntime(cudaMemset((char*)host_buffer, 0, buffersize));
+    checkRuntime(cudaMemset((char*)device_buffer, 0, buffersize));
     // LOG_INFO("temp:%d", temp);
     // temp = 100;
     inputW = kInputW;
@@ -86,26 +119,29 @@ int Yolov5::init() {
     }
     float mean[3] = {0, 0, 0};
     float std[3] = {1, 1, 1};
-    runtime = nvinfer1::createInferRuntime(gLogger);
-    if (!runtime) {
-        std::cout << "createInferRuntime failed" << std::endl;
-        return -1;
-    }
-    auto engine_data = loadData(trt_file);
-    engine = runtime->deserializeCudaEngine(engine_data.data(), engine_data.size());
-    if (!engine) {
-        std::cout << "deserializeCudaEngine failed" << std::endl;
-        return -1;
-    }
-    if (engine->getNbIOTensors() != 2) {
-        std::cout << "getNbBindings failed" << std::endl;
-        return -1;
-    }
-    context = engine->createExecutionContext();
-    if (!context) {
-        std::cout << "createExecutionContext failed" << std::endl;
-        return -1;
-    }
+    // if (runtime == nullptr) {
+    //     runtime = nvinfer1::createInferRuntime(gLogger);
+    //     LOG_INFO("createInferRuntime");
+    // }
+    // if (!runtime) {
+    //     std::cout << "createInferRuntime failed" << std::endl;
+    //     return -1;
+    // }
+    // auto engine_data = loadData(trt_file);
+    // engine = runtime->deserializeCudaEngine(engine_data.data(), engine_data.size());
+    // if (!engine) {
+    //     std::cout << "deserializeCudaEngine failed" << std::endl;
+    //     return -1;
+    // }
+    // if (engine->getNbIOTensors() != 2) {
+    //     std::cout << "getNbBindings failed" << std::endl;
+    //     return -1;
+    // }
+    // context = engine->createExecutionContext();
+    // if (!context) {
+    //     std::cout << "createExecutionContext failed" << std::endl;
+    //     return -1;
+    // }
 
     // 明确当前推理时，使用的数据输入大小
     auto input_dims = engine->getTensorShape(kInputTensorName);
@@ -174,10 +210,10 @@ int Yolov5::init() {
         return -1;
     }
 
-    if (malloc_device(&image_data_device, kChannel * kImageHMax * kImageWMax * sizeof(unsigned char))<0) {
-        std::cout << "malloc_device image_data_device failed" << std::endl;
-        return -1;
-    }
+    // if (malloc_device(&image_data_device, kChannel * kImageHMax * kImageWMax * sizeof(unsigned char))<0) {
+    //     std::cout << "malloc_device image_data_device failed" << std::endl;
+    //     return -1;
+    // }
 
     if (malloc_host(&h_filtered_boxes, sizeof(int) * (output_numel + 1))) {
         std::cout << "malloc_host h_filtered_boxes failed" << std::endl;
@@ -213,6 +249,10 @@ int Yolov5::init() {
 
 
 int Yolov5::preprocess(ImageData_t *imgdata) {
+    if (malloc_device(&image_data_device, imgdata->numel * sizeof(unsigned char))<0) {
+        std::cout << "malloc_device image_data_device failed" << std::endl;
+        return -1;
+    }
     // 前处理
     // std::cout << "preprocess" << std::endl;
     calculate_matrix((float*)h_matrix, imgdata->width, imgdata->height, kInputW, kInputH);
@@ -547,6 +587,7 @@ int Yolov5::build() {
     /* 这里面为何用智能指针，是因为如果不用构建，这些变量都用不到
     */
     if (exists(trt_file)) {
+        build_finished = true;
         // std::cout << "trt_file exists" << std::endl;
         LOG_INFO("trt file exists: %s", trt_file.c_str());
         return 0;
@@ -619,6 +660,7 @@ int Yolov5::build() {
     saveData(trt_file, reinterpret_cast<char*>(serialized_engine->data()), serialized_engine->size());
     // printf("Serialize engine success\n");
     LOG_INFO("Serialize engine success");
+    build_finished = true;
     return 0;
 
 }

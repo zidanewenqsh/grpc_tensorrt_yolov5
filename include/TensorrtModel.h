@@ -48,7 +48,6 @@ protected:
     void *d_std = nullptr;
     void *h_matrix = nullptr;
     void *d_matrix = nullptr;
-    bool init_finished = false;
     std::string onnx_file;
     std::string trt_file;
     std::string name;
@@ -72,6 +71,9 @@ protected:
     bool use_int8 = false;
     bool use_fp16 = false;
     bool set_memory = false;
+    bool init_finished = false;
+    // static bool build_finished = false;
+    bool build_finished = false;
     int temp = 1024;
 
 public:
