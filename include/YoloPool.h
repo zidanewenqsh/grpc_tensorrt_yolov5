@@ -7,16 +7,19 @@
 #include <queue>
 #include <mutex>
 #include <memory>
-#include "Yolo.h" // 假设 Yolo 类的定义在这个文件中
+// #include "IYolo.h" // 假设 Yolo 类的定义在这个文件中
+#include "TensorrtModel.h" // 假设 Yolo 类的定义在这个文件中
 
+typedef TensorRTModel IYolo;
 class YoloPool:public Logger {
 public:
-    YoloPool(std::string modelname);
-    std::unique_ptr<Yolov5> acquire();
-    void release(std::unique_ptr<Yolov5> yolo);
+    YoloPool(const std::string& modelname, size_t count); // 构造函数, count 为预先创建的 Yolo 实例的数量
+    ~YoloPool();
+    std::shared_ptr<IYolo> acquire();
+    void release(std::shared_ptr<IYolo> yolo);
 
 private:
-    std::queue<std::unique_ptr<Yolov5>> pool;
+    std::queue<std::shared_ptr<IYolo>> pool;
     std::mutex poolMutex;
     std::string modelName;
 };

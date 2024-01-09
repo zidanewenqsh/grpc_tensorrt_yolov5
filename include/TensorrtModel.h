@@ -76,15 +76,17 @@ protected:
 
 public:
     TensorRTModel();
-    TensorRTModel(std::string &name);
-    TensorRTModel(std::string &name, int buffer_size);
+    TensorRTModel(const std::string &name);
+    TensorRTModel(const std::string &name, int buffer_size);
     virtual ~TensorRTModel();
 
     int malloc_host(void **ptr, size_t size);
     int malloc_device(void** ptr, size_t size);
 
-    int build();
+    // int build();
+    virtual int build() = 0;
     virtual int init() = 0;
+    virtual void reset() = 0;
     virtual int setMemory(void *cpuptr, void *gpuptr, int buffersize) = 0;
     virtual int preprocess(cv::Mat &img) = 0;
     virtual int postprocess() = 0;

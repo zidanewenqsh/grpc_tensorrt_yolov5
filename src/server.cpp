@@ -1,12 +1,17 @@
 #include <grpc++/grpc++.h>
 // #include "postprocess_gpu.h"
+#include "InferenceManager.h"
+#include "Yolov5.h"
 #include "yolov5_service.grpc.pb.h"
 #include <opencv2/opencv.hpp>
 #include <vector>
 
-#include "InferenceManager.h"
+// #include "InferenceManager.h"
 // #include "ServerConfig.h"
-
+// #include "Yolo.h"
+#include "YoloPool.h"   // 假设YoloPool的定义在这个文件中
+#include "MemoryPool.h" // 假设MemoryPool的定义在这个文件中
+#include "MemoryPoolGpu.h" // 假设MemoryPool的定义在这个文件中
 using grpc::Server;
 using grpc::ServerBuilder;
 using grpc::ServerContext;
@@ -16,27 +21,34 @@ using yolov5::InferenceResult;
 using yolov5::ObjectDetection;
 using yolov5::YOLOv5Service;
 
-// 假设YOLOv5Model是一个能够处理图像并返回检测结果的类
-class YOLOv5Model : public InferenceManager {
-public:
-    YOLOv5Model(size_t pool_size, size_t threads, const std::string& modelname):
-        InferenceManager(pool_size, threads, modelname){}
 
-    InferenceResult Infer(const cv::Mat& image) {
+// 实现gRPC服务
+class YOLOv5ServiceImpl final : public YOLOv5Service::Service, public InferenceManager {
+public:
+    YOLOv5ServiceImpl(size_t pool_size, size_t threads, const std::string& modelname):
+        InferenceManager(pool_size, threads, modelname){}
+private:
+    Status Infer(ServerContext* context, const ImageData* request, InferenceResult* reply) override {
         InferenceResult result;
+        // 将ImageData转换为cv::Mat
+        cv::Mat image(request->height(), request->width(), CV_8UC3, (void*)request->image().c_str());
+        // 执行推理
+        std::string name = "yolov5s";
+
         // 这里添加YOLOv5的推理代码，并填充result
         auto yolo = yoloPool.acquire();
+        auto yolov5 = dynamic_cast<Yolov5*>(yolo.get());
 
         void *cpuYoloMemory = cpuMemoryPool.allocate();
         void *gpuYoloMemory = gpuMemoryPool.allocate();
 
         std::shared_ptr<Data> data = std::make_shared<ImageData_t>();
         ImageData_t* imgdata = dynamic_cast<ImageData_t*>(data.get());
-        yolo->setMemory(cpuYoloMemory, gpuYoloMemory, poolSize);
-        yolo->make_imagedata(image, imgdata);
-        yolo->inference(data.get());
+        yolov5->setMemory(cpuYoloMemory, gpuYoloMemory, poolSize);
+        yolov5->make_imagedata(image, imgdata);
+        yolov5->inference(data.get());
         void *boxes_;
-        int num_boxes = yolo->get_box(&boxes_);
+        int num_boxes = yolov5->get_box(&boxes_);
         // 执行YOLOv5推理
         // auto [boxes, num_boxes] = RunYOLOv5Inference(image);
         gBox *boxes = (gBox*)boxes_;
@@ -52,7 +64,10 @@ public:
             detection->set_score(box.prob);
             detection->set_label(box.label);
         }
-
+        *reply = result;
+        
+        yolov5->reset();
+        
         // 推理完成后释放内存
         cpuMemoryPool.deallocate(cpuYoloMemory);
         gpuMemoryPool.deallocate(gpuYoloMemory);
@@ -60,30 +75,13 @@ public:
         // 将Yolo实例返回到池中
         yoloPool.release(std::move(yolo));
 
-        
-        return result;
-    }
-};
-
-// YOLOv5Model model(1<<25, 1, "yolov5s");
-// static YOLOv5Model model(1<<25, 1, "yolov5s");
-// 实现gRPC服务
-class YOLOv5ServiceImpl final : public YOLOv5Service::Service {
-    Status Infer(ServerContext* context, const ImageData* request, InferenceResult* reply) override {
-        // 将ImageData转换为cv::Mat
-        cv::Mat image(request->height(), request->width(), CV_8UC3, (void*)request->image().c_str());
-        // 执行推理
-        std::string name = "yolov5s";
-        YOLOv5Model model(1<<25, 1, name);
-        // YOLOv5Model model(1<<25, 1, "yolov5s");
-        *reply = model.Infer(image);
         return Status::OK;
     }
 };
 
 void RunServer() {
     std::string server_address("0.0.0.0:50051");
-    YOLOv5ServiceImpl service;
+    YOLOv5ServiceImpl service(1<<25, 1, "yolov5s");
 
     ServerBuilder builder;
     builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());

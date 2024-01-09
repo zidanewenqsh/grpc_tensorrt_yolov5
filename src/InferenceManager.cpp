@@ -1,8 +1,11 @@
 #include "InferenceManager.h"
 
 InferenceManager::InferenceManager(size_t pool_size, size_t threads, const std::string& modelname)
-    : poolSize(pool_size), cpuMemoryPool(pool_size), gpuMemoryPool(pool_size), 
-        threadPool(threads), yoloPool(modelname) {
+    : poolSize(pool_size), cpuMemoryPool(pool_size, threads), 
+        gpuMemoryPool(pool_size, threads), 
+        threadPool(threads), yoloPool(modelname, threads) {
+    // YoloFactory::getInstance().setName(modelname);
+    
     // 构造函数内容
     auto yolo = yoloPool.acquire();
     // 初始化
@@ -35,6 +38,7 @@ void InferenceManager::processImages(const std::vector<Image>& images) {
 Result InferenceManager::processSingleImage(const Image& image) {
     // 从YoloPool获取一个Yolo实例
     auto yolo = yoloPool.acquire();
+    auto yolov5 = dynamic_cast<Yolov5*>(yolo.get());
 
     // 从内存池中分配内存给Yolo实例
     // void* yoloMemory = memoryPool.allocate();
@@ -56,12 +60,13 @@ Result InferenceManager::processSingleImage(const Image& image) {
 
     std::shared_ptr<Data> data = std::make_shared<ImageData_t>();
     ImageData_t* imgdata = dynamic_cast<ImageData_t*>(data.get());
-    yolo->setMemory(cpuYoloMemory, gpuYoloMemory, poolSize);
-    yolo->make_imagedata(img, imgdata);
+    yolov5->setMemory(cpuYoloMemory, gpuYoloMemory, poolSize);
+    yolov5->make_imagedata(img, imgdata);
+
     // 使用Yolo实例进行推理
     Result result = yolo->inference(data.get());
     // printf("Result:%d\n", result);
-    yolo->drawimg(img, savepath);
+    yolov5->drawimg(img, savepath);
     // Result result = 0;
 
     // 推理完成后释放内存

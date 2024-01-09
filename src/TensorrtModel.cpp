@@ -42,7 +42,7 @@ TensorRTModel::TensorRTModel() {
     cudaStreamCreate(&stream);
     
 }
-TensorRTModel::TensorRTModel(std::string &name){
+TensorRTModel::TensorRTModel(const std::string &name){
     LOG_INFO("TensorRTModel()");
     // std::cout << "TensorRTModel()" << std::endl;
     cudaStreamCreate(&stream);
@@ -51,7 +51,7 @@ TensorRTModel::TensorRTModel(std::string &name){
     // std::cout << "trt_file:" << trt_file << std::endl;
     // std::cout << "TensorRTModel() init finished" << std::endl;
 }
-TensorRTModel::TensorRTModel(std::string &name, int buffer_size):buffersize(buffer_size) {
+TensorRTModel::TensorRTModel(const std::string &name, int buffer_size):buffersize(buffer_size) {
     // std::cout << "TensorRTModel()" << std::endl;
     // checkRuntime(cudaMallocHost(&host_buffer, buffer_size));
     // checkRuntime(cudaMalloc(&device_buffer, buffer_size));
@@ -71,86 +71,6 @@ TensorRTModel::~TensorRTModel(){
     checkRuntime(cudaStreamDestroy(stream));
 }
 
-int TensorRTModel::build() {
-    // 生成engine
-    /* 这里面为何用智能指针，是因为如果不用构建，这些变量都用不到
-    */
-    if (exists(trt_file)) {
-        // std::cout << "trt_file exists" << std::endl;
-        LOG_INFO("trt file exists");
-        return 0;
-    }
-    if (!exists(onnx_file)) {
-        // std::cout << "onnx_file not exists" << std::endl;
-        LOG_ERROR("onnx file not exists");
-        return -1;
-    }
-    auto builder = std::unique_ptr<nvinfer1::IBuilder>(nvinfer1::createInferBuilder(gLogger));
-    if (!builder) {
-        // std::cout << "createInferBuilder failed" << std::endl;
-        LOG_ERROR("createInferBuilder failed");
-        return -1;
-    }
-    auto explictBatch = 1U << static_cast<uint32_t>(nvinfer1::NetworkDefinitionCreationFlag::kEXPLICIT_BATCH);  // NOLINT   
-    auto network = std::unique_ptr<nvinfer1::INetworkDefinition>(builder->createNetworkV2(explictBatch));
-    if (!network) {
-        // std::cout << "createNetworkV2 failed" << std::endl;
-        LOG_ERROR("createNetworkV2 failed");
-        return -1;
-    }
-    auto parser = std::unique_ptr<nvonnxparser::IParser>(nvonnxparser::createParser(*network, gLogger));
-    if (!parser) {
-        // std::cout << "createParser failed" << std::endl;
-        LOG_ERROR("createParser failed");
-        return -1;
-    }
-    // 创建引擎
-    auto config = std::unique_ptr<nvinfer1::IBuilderConfig>(builder->createBuilderConfig());
-    if (!config) {
-        // std::cout << "createBuilderConfig failed" << std::endl;
-        LOG_ERROR("createBuilderConfig failed");
-        return -1;
-    }
-
-    // builder->setMaxBatchSize(1);
-    if (use_fp16) {
-        config->setFlag(nvinfer1::BuilderFlag::kFP16);
-    }
-    // config->setFlag(nvinfer1::BuilderFlag::);
-    // 设置工作区的大小
-    config->setMemoryPoolLimit(nvinfer1::MemoryPoolType::kWORKSPACE, 1<<28);
-    
-    // 创建onnxparser
-    auto success= parser->parseFromFile(onnx_file.c_str(), 1);
-    if (!success) {
-        // std::cout << "parseFromFile failed" << std::endl;
-        LOG_ERROR("parseFromFile failed");
-        return -1;
-    }
-    auto input = network->getInput(0);
-    nvinfer1::IOptimizationProfile *profile = builder->createOptimizationProfile();
-
-    if (!profile) {
-        // std::cout << "createOptimizationProfile failed" << std::endl;
-        LOG_ERROR("createOptimizationProfile failed");
-        return -1;
-    }
-    profile->setDimensions(input->getName(), nvinfer1::OptProfileSelector::kMIN, nvinfer1::Dims4{1, channelSize, inputH, inputW});
-    profile->setDimensions(input->getName(), nvinfer1::OptProfileSelector::kOPT, nvinfer1::Dims4{optBatchSize, channelSize, inputH, inputW});
-    profile->setDimensions(input->getName(), nvinfer1::OptProfileSelector::kMAX, nvinfer1::Dims4{maxBatchSize, channelSize, inputH, inputW});
-    config->addOptimizationProfile(profile);
-    auto serialized_engine = std::unique_ptr<nvinfer1::IHostMemory>(builder->buildSerializedNetwork(*network, *config));
-    if (!serialized_engine) {
-        std::cout << "buildSerializedNetwork failed" << std::endl;
-        LOG_ERROR("createInferBuilder failed");
-        return -1;
-    }
-    saveData(trt_file, reinterpret_cast<char*>(serialized_engine->data()), serialized_engine->size());
-    // printf("Serialize engine success\n");
-    LOG_INFO("Serialize engine success");
-    return 0;
-
-}
 int TensorRTModel::malloc_host(void **ptr, size_t size) {
     if (*ptr != nullptr) {
         std::cout << "malloc_host failed, *ptr is not nullptr" << std::endl;

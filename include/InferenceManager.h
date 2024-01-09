@@ -9,6 +9,8 @@
 #include "MemoryPoolGpu.h" // 假设MemoryPool的定义在这个文件中
 #include <opencv2/opencv.hpp>
 #include "Logger.h"
+#include "Yolov5.h"
+#include "YoloFactory.h"
 // #include "Image.h"      // 假设Image的定义在这个文件中
 // #include "Result.h"     // 假设Result的定义在这个文件中
 // #define Result int
